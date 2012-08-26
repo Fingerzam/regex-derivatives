@@ -59,8 +59,18 @@ parser `sepby1` sep = do
     as <- many (sep >> parser)
     return (a:as)
 
+chainl :: Parser a -> Parser (a -> a -> a) -> a -> Parser a
+chainl p op a = (p `chainl1` op) +++ return a
+
+chainl1 :: Parser a -> Parser (a -> a -> a) -> Parser a
+p `chainl1` op = do {a <- p; rest a}
+  where rest a = (do f <- op
+                     b <- p
+                     rest (f a b))
+                 +++ return a
+
 data Regex = Epsilon
-           | RChar       Char
+           | RChar      Char
            | Concat     Regex Regex
            | And        Regex Regex
            | Or         Regex Regex
@@ -92,11 +102,30 @@ derivative char1 (RChar char2) =
 derivative char (Concat regex1 regex2) = (Or (Concat (derivative char regex1) regex2)
                                              (Concat (regexNullable regex1) (derivative char regex2)))
 derivative char (And regex1 regex2) = (And      (derivative char regex1) (derivative char regex2))
-derivative char (Or regex1 regex2)  = (Or       (derivative char regex1) (derivative char regex2))
+derivative char (Or  regex1 regex2) = (Or       (derivative char regex1) (derivative char regex2))
 derivative char (Repetition regex)  = (Concat   (derivative char regex)  (Repetition regex))
-derivative char (Negation regex)    = (Negation (derivative char regex))
+derivative char (Negation   regex)  = (Negation (derivative char regex))
 derivative char Empty               = Empty
 
 matches :: Regex -> String -> Bool
 regex `matches` "" = nullable regex
 regex `matches` (char:rest) = (derivative char regex) `matches` rest
+
+expr1 = expr2 `chainl1` orOp
+expr2 = expr3 `chainl1` andOp
+expr3 = expr4 `chainl1` concatOp
+expr4 = (do {string "-"; e <- expr5; return (Negation e)}) +++ expr5
+expr5 = (do {e <- expr6; string "*"; return (Repetition e)}) +++ expr6
+expr6 =  (do {char <- sat validChar; return (RChar char)}) +++
+         (do {string "("; e <- expr1; string ")"; return e})
+
+validChar c = not $ c `elem` "()*-|"
+
+orOp     = do {string "|"; return Or}
+andOp    = do {string "&"; return And}
+concatOp = do {string "";  return Concat}
+
+parseRegex :: String -> Maybe Regex
+parseRegex regexString = case parse expr1 regexString of
+                           [(regex, _)] -> Just regex
+                           x            -> Nothing
