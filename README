@@ -1,0 +1,5 @@
+A regular expression matcher and parser based on the paper "Regular-expression
+derivatives reexamined" [1] and the tutorial "Monadic Parsing in Haskell". [2]
+
+[1]: www.ccs.neu.edu/home/turon/re-deriv.pdf
+[2]: http://eprints.nottingham.ac.uk/223/1/pearl.pdf
